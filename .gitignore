@@ -80,3 +80,13 @@ deployment/
 *_backup/
 backup/
 backups/
+
+tests/REAL_34_UNIT_MAPPING_SAMPLE.xml
+
+# Allow bundled preprocessing schema templates
+!PreprocessTemplates/
+!PreprocessTemplates/*.shp
+!PreprocessTemplates/*.shx
+!PreprocessTemplates/*.dbf
+!PreprocessTemplates/*.prj
+!PreprocessTemplates/*.cpg

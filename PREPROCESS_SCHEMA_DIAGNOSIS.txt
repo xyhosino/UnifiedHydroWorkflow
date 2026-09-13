@@ -1,0 +1,85 @@
+V5.0 preprocessing import-failure diagnosis
+========================================================================
+Input A: user-provided accepted standard WFC17_2_3_1
+Input B: user-provided V5.0 generated WFC17_2_3_1_bug
+
+[wata]
+records: standard=55, failed=55; bbox_equal=True; shape_type_equal=True
+fields: standard=40, failed=39
+dbf_bytes: standard=55709, failed=157867
+common_field_value_mismatches=0
+standard_only_fields=Shape_Leng,x0xE40xB80,x0xE40xBA0,Shape_Le_1,Shape_Le_2,Shape_Area,WSCU_Name
+failed_only_fields=OBJECTID,SHAPE_Leng,SHAPE_Area,MFP,负责人,分工
+common_field_schema_changes:
+  WSCD: standard=['C', 16, 0] failed=['C', 20, 0]
+  WSNM: standard=['C', 2, 0] failed=['C', 254, 0]
+  GB: standard=['C', 6, 0] failed=['C', 254, 0]
+  PWSCD: standard=['C', 2, 0] failed=['C', 254, 0]
+  IWSCD: standard=['C', 203, 0] failed=['C', 254, 0]
+  OWSCD: standard=['C', 16, 0] failed=['C', 254, 0]
+  ONDCD: standard=['C', 16, 0] failed=['C', 254, 0]
+  WSCS: standard=['C', 2, 0] failed=['C', 254, 0]
+  WSTYPE: standard=['C', 2, 0] failed=['C', 254, 0]
+  WSAREA: standard=['N', 10, 0] failed=['F', 19, 11]
+  OUTLETAD8: standard=['N', 10, 0] failed=['F', 19, 11]
+  ISDISP: standard=['N', 10, 0] failed=['N', 5, 0]
+  ISPLAIN: standard=['N', 10, 0] failed=['N', 5, 0]
+  DESP: standard=['C', 2, 0] failed=['C', 254, 0]
+
+[rivl]
+records: standard=55, failed=55; bbox_equal=True; shape_type_equal=True
+fields: standard=106, failed=26
+dbf_bytes: standard=119476, failed=23196
+common_field_value_mismatches=0
+standard_only_fields=Join_Count,TARGET_FID,JOIN_FID,WSCD,WSNM,GB_1,PWSCD,IWSCD,OWSCD,ONDCD_1,WSCS,WSTYPE,WSAREA,WSPERI,WSSLP,WSSHPC,MAXLEN,MAXLSLP,MAXLS1085,CENTERX,CENTERY,CENTERELV,OUTLETX,OUTLETY,OUTLETELV,OUTLETAD8,MAXELV,TOPX,TOPY,BOTTOMX,BOTTOMY,AVEROU,AVEINF,ISDISP_1,ISPLAIN,DESP_1,Shape_Le_1,x0xE40xB80,x0xE40xBA0,Shape_Le_2,Shape_Le_3,Shape_Le_4,FID_,WSCD_1,WSNM_1,GB_12,PWSCD_1,IWSCD_1,OWSCD_1,ONDCD_12,WSCS_1,WSTYPE_1,WSAREA_1,WSPERI_1,WSSLP_1,WSSHPC_1,MAXLEN_1,MAXLSLP_1,MAXLS108_1,CENTERX_1,CENTERY_1,CENTEREL_1,OUTLETX_1,OUTLETY_1,OUTLETEL_1,OUTLETAD_1,MAXELV_1,TOPX_1,TOPY_1,BOTTOMX_1,BOTTOMY_1,AVEROU_1,AVEINF_1,ISDISP_12,ISPLAIN_1,DESP_12,Shape_Le_5,x0xE40xB_1,x0xE40xB_2,Shape_Le_6,Shape_Le_7,Shape_Area,WSCU_Name
+failed_only_fields=OBJECTID,RVLEVEL,tmp2
+common_field_schema_changes:
+  RVNM: standard=['C', 20, 0] failed=['C', 23, 0]
+  INDCD: standard=['C', 84, 0] failed=['C', 101, 0]
+  RVCS: standard=['F', 19, 11] failed=['N', 4, 0]
+  RVLEN: standard=['F', 19, 11] failed=['N', 6, 0]
+  RVSLP: standard=['F', 19, 11] failed=['N', 10, 6]
+  IELV: standard=['F', 19, 11] failed=['N', 13, 6]
+  OELV: standard=['F', 19, 11] failed=['N', 13, 6]
+  Shape_Leng: standard=['F', 19, 11] failed=['N', 10, 6]
+
+[node]
+records: standard=28, failed=28; bbox_equal=True; shape_type_equal=True
+fields: standard=18, failed=13
+dbf_bytes: standard=19146, failed=24558
+common_field_value_mismatches=0
+standard_only_fields=OBJECTID,ARVCD,ALLCD,ISDISP,ISSAVE,DESP,WSCU_Name
+failed_only_fields=Id,AWRVCD
+common_field_schema_changes:
+  NDCD: standard=['C', 16, 0] failed=['C', 50, 0]
+  NDNM: standard=['C', 2, 0] failed=['C', 50, 0]
+  GB: standard=['C', 6, 0] failed=['C', 16, 0]
+  FNDCD: standard=['C', 186, 0] failed=['C', 100, 0]
+  TNDCD: standard=['C', 16, 0] failed=['C', 100, 0]
+  AWSCD: standard=['C', 50, 0] failed=['C', 100, 0]
+  ARESCD: standard=['C', 11, 0] failed=['C', 100, 0]
+  ADWCD: standard=['C', 16, 0] failed=['C', 100, 0]
+  ASWCD: standard=['C', 16, 0] failed=['C', 100, 0]
+  NDX: standard=['N', 12, 6] failed=['F', 19, 11]
+  NDY: standard=['N', 11, 6] failed=['F', 19, 11]
+
+[土地利用]
+records: standard=7711, failed=7711; bbox_equal=True; shape_type_equal=True
+fields: standard=12, failed=12
+dbf_bytes: standard=2082388, failed=2082388
+common_field_value_mismatches=0
+
+[土壤类型]
+records: standard=19, failed=19; bbox_equal=True; shape_type_equal=True
+fields: standard=9, failed=9
+dbf_bytes: standard=6288, failed=6288
+common_field_value_mismatches=0
+
+Conclusion:
+- The failed WATA/RIVL/NODE attributes are not in the accepted model schema.
+- WATA: 40 fields accepted vs 39 generated.
+- RIVL: 106 fields accepted vs 26 generated.
+- NODE: 18 fields accepted vs 13 generated.
+- For every same-named field, record values match between the two datasets.
+- Land-use and soil field schemas also match; they are not the primary failure source.
+- Therefore V5.0 must use the accepted template schema for WATA/RIVL/NODE, exactly as the validated preprocessing script did.

@@ -1,0 +1,144 @@
+UnifiedHydroWorkflow V3.2 / UnifiedHydroLauncher V4.4
+交付与测试报告
+============================================================
+日期：2026-09-10
+目标框架：.NET Framework 4.0
+目标平台：x86
+
+1. 稳定版本保留
+- V3.1 源码和 EXE 保留在：
+  E:\hydrological_modeling\UnifiedHydroWorkflow\UnifiedHydroWorkflow_Source_V3.1
+- V3.1 原 EXE 和 config 的专用备份位于：
+  E:\hydrological_modeling\UnifiedHydroWorkflow\UnifiedHydroWorkflow_V3.1_EXE_BACKUP
+- V3.1 EXE SHA-256：
+  2BD6633DCA60CFADA9B0C89558B8C2F95FBE948A7D4957E9F3168CF969E20BAA
+- V3.1 UnifiedHydroWorkflow.cs SHA-256：
+  36813CF91E1D575B5B56DBB9DD0F65A6FABC916396C65CDEE50F055EA255117E
+- V4.3.2 保留在：
+  E:\hydrological_modeling\UnifiedHydroLauncher_V4_3_2
+- V4.3.2 MainForm.cs SHA-256：
+  7BF046BBD6DF5AE398C3DB2311ED2112648AB8AAF5357240C9E1FCB26C8C5791
+- 开发和测试未覆盖上述稳定源码文件。
+
+2. V3.2 修改文件
+- UnifiedHydroWorkflow.cs：增加可选 --input-map 分支、映射预校验、
+  映射路径日志、实际 basename 的 SHP 导入和 CopyShapeFromPath。
+- InputMapping.cs（新增）：XML 读取、结构校验、单元匹配和路径解析。
+- AssemblyInfo.cs（新增）：程序集版本 3.2.0.0。
+- UnifiedHydroWorkflow.csproj：包含新增源码；输出名仍为
+  UnifiedHydroWorkflow.exe。
+- README_V3.2.txt（新增）。
+- tests\run_preflight_guards.ps1（新增）。
+
+3. --input-map 解析位置
+- UnifiedHydroWorkflow.cs 的 ParseOptions 分支读取 --input-map。
+- Run 方法在枚举/处理单元时载入 InputMappingDocument。
+- 所选单元的七类路径在 PREFLIGHT_BEGIN 后逐单元验证完成；
+  BackupDatabase、ClientConn.Client、EnsureProject 位于验证成功之后。
+
+4. UnitInput
+- legacy 构造函数 UnitInput(string folder) 原规则不变。
+- 映射构造函数 UnitInput(string folder, InputMappingEntry mapping)
+  从 XML 独占解析 Watershed、River、Node、Land、Soil、Station、Rainfall。
+- 映射模式 ExcelImport 的实际参数是 unit.StationFile 和
+  unit.RainfallFile；全局 --station-file/--rainfall-file 不覆盖它们。
+
+5. CopyShape 兼容
+- legacy CopyShape 调用保持原样。
+- 映射模式使用 CopyShapeFromPath，按实际源 basename 复制
+  .shp/.shx/.dbf/.prj/.cpg/.sbn/.sbx/.qix/.shp.xml 中存在的文件，
+  目标仍为 Wata/Rivl/Node/USLU/SLTA。
+- SHPImport 接收完整源路径；映射模式同时传入实际源图层 basename。
+
+6. 未指定 --input-map 的兼容保证
+- 走原 UnitInput(folder)、固定五类文件名和全局站点/降雨参数。
+- 未插入 Mapping 读取、推断或命令参数。
+- Launcher 标准命名兼容模式的单单元三种运行模式和 --all 命令均与
+  V4.3.2 基线逐字节一致。
+
+7. Launcher V4.4 修改文件
+- MainForm.cs、MainForm.Environment.cs、UnifiedHydroLauncher.csproj。
+- 新增 MainForm.InputMapping.cs、InputDiscovery.cs、
+  LauncherInputMapping.cs、InputMappingForm.cs、AssemblyInfo.cs、
+  README_V4_4.txt。
+- 新增 tests\EnvironmentTests.cs、tests\MappingTests.cs、
+  tests\run_tests.ps1 及测试结果文件。
+
+8. Mapping GUI
+- InputMappingForm.cs 实现 10 列：
+  计算单元、流域、河道、节点、土地利用、土壤、站点、降雨、状态、说明。
+- 候选可下拉选择，也可浏览指定；仅允许保存七类路径完整有效的单元。
+- 保存路径为输入根目录 UnifiedHydroInputMapping.xml，单元目录内文件
+  默认写相对路径，外部绝对路径兼容。
+
+9. topology scan
+- MainForm.ScanUnits 将已解析单元的 River 完整路径传给
+  DetectExternalSourceTopology。
+- 后者把该实际 .shp 路径改为同 basename 的 .dbf 后读取 RVCD/FRVCD。
+- 未写死 rivl.dbf。
+
+10. xls/xlsx
+- InputDiscovery 对 Station/Rainfall 同时发现 .xls 和 .xlsx。
+- 映射可为每个单元指定不同文件。
+- Workflow 映射校验只接受存在的 .xls/.xlsx，并把完整路径直接传给
+  ExcelImport。
+
+11. V3.1 legacy 回归
+- V3.1 legacy、V3.2 legacy 真实预检覆盖率一致：
+  land_min=0.999687，soil_min=0.999687，wata=55。
+- 最终 V3.2 Release 不带 --input-map 完整计算成功：
+  selected=1 attempted=1 success=1 failed=0。
+- 与保存的 V3.1 结果比较：工程输入 25/25 文件 SHA-256 一致；
+  out.csv、outlet.csv、QJ.csv、stateVariable.csv 除自动生成时间行外，
+  数据行 4/4 一致。
+
+12. 标准命名 Mapping
+- 完整计算成功：selected=1 attempted=1 success=1 failed=0。
+- 导入计数：wata=55、river=55、node=28、land=118、soil=125、
+  station=2、rainfall=360。
+- 与 V3.1 工程输入 25/25 哈希一致；四个模型结果文件除生成时间外一致。
+- 使用不存在的全局站点/降雨文件名仍预检通过，证明 XML Station/Rainfall
+  未被全局参数覆盖。
+
+13. 非标准文件名 Mapping
+- basin_test/river_test/junction_test/lucc_test/soil_test 全部成功导入。
+- 源文件保持原名，模型工程目标正确生成 Wata/Rivl/Node/USLU/SLTA。
+- 25 个模型工程文件完整；四个结果文件与 V3.1 数据一致。
+- station_test.xls + rainfall .xlsx 成功；反向 station .xlsx +
+  rainfall .xls 也完整计算成功。
+
+14. Launcher GUI 与批量测试
+- Environment/GUI/command 回归：45/45 通过。
+- Mapping/发现测试：11/11 通过。
+- 真实 34 单元扫描：total=34 ready=34 ambiguous=0 missing=0。
+- 状态缓存重复扫描保持测试通过；映射 River topology 测试通过。
+- V3.2 --all 真实预检：selected=34 valid=34 skipped=0。
+- V3.2 --all 真实完整计算：
+  selected=34 attempted=34 success=34 failed=0；34 个日志单元唯一且
+  34 个 outlet.csv 均存在并非空。
+
+15. 写前失败保护
+- 最终 Release EXE 的九类保护测试 9/9 通过：
+  Mapping 缺失、XML 错误、Unit 缺失、字段缺失、SHP 缺失、SHX 缺失、
+  DBF 缺失、Excel 缺失、Excel 扩展名错误。
+- 每一项均非零退出；project.db SHA-256 前后不变；
+  unified_workflow_backups 新增数均为 0。
+
+16. 编译
+- V3.2：Release/x86 成功，0 error。
+- V4.4：Release/x86 成功，0 error。
+- 环境缺少 .NET Framework 4.0 Targeting Pack，MSBuild 报 MSB3644；
+  V3.2 的旧依赖程序集另有 MSB3247 版本冲突警告。两项为既有旧框架/
+  旧依赖警告，构建产物已生成并完成上述真实运行。
+- 程序集版本：Workflow 3.2.0.0；Launcher 4.4.0.0。
+
+17. EXE 输出
+- V3.2：
+  E:\hydrological_modeling\UnifiedHydroWorkflow\UnifiedHydroWorkflow_Source_V3.2\bin\Release\UnifiedHydroWorkflow.exe
+- V4.4：
+  E:\hydrological_modeling\UnifiedHydroLauncher_V4_4\bin\Release\UnifiedHydroLauncher.exe
+- Launcher 和 Workflow 正式部署时需放在同一水文模型根目录；
+  Launcher 自动寻找同目录 UnifiedHydroWorkflow.exe。
+
+18. ZIP
+- E:\hydrological_modeling\UnifiedHydro_V3.2_V4.4.zip
