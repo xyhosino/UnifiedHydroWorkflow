@@ -3,7 +3,7 @@ using System.IO;
 
 namespace UnifiedHydroLauncher
 {
-    // V5.0.8 keeps the maintained Workflow core in the recommended nested
+    // V5.1.0 keeps the maintained Workflow core in the recommended nested
     // deployment beside the Launcher, and stages it into
     // the original model root only while it is executed. This preserves the
     // original model assembly/database lookup environment without scattering the
@@ -93,7 +93,7 @@ namespace UnifiedHydroLauncher
                     File.Copy(layout.WorkflowConfigSourcePath, targetConfig, false);
 
                 File.WriteAllText(markerPath,
-                    "V5.0.8 runtime staging\r\nsource=" + layout.WorkflowSourcePath +
+                    "V5.1.0 runtime staging\r\nsource=" + layout.WorkflowSourcePath +
                     "\r\ntime=" + DateTime.Now.ToString("s"));
                 stagedByThisInstance = true;
                 executionPath = targetExe;

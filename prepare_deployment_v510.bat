@@ -7,8 +7,8 @@ if /i "%~1"=="--refresh" goto REFRESH
 set "MODELROOT=%~1"
 if "%MODELROOT%"=="" (
   echo Usage example:
-  echo   prepare_deployment_v508.bat "E:\hydrological_modeling\ModelRoot"
-  echo   prepare_deployment_v508.bat --refresh
+  echo   prepare_deployment_v510.bat "E:\hydrological_modeling\ModelRoot"
+  echo   prepare_deployment_v510.bat --refresh
   echo.
   set /p MODELROOT=Original model root: 
 )
@@ -42,7 +42,7 @@ if not defined OLDCFG (
   echo.
   echo Keep the old UnifiedHydroWorkflow folder until this deployment package has been created,
   echo or place its UnifiedHydroWorkflow.exe.config back under the model root temporarily.
-  echo V5.0.8 reuses the verified core configuration file intentionally.
+  echo V5.1.0 reuses the verified core configuration file intentionally.
   pause
   exit /b 4
 )
@@ -51,7 +51,7 @@ echo [INFO] Workflow config source:
 echo        %OLDCFG%
 
 set "COREOUT=%~dp0WorkflowCore\bin"
-call "%~dp0WorkflowCore\build_workflow_v34.bat" "%MODELROOT%" "%COREOUT%"
+call "%~dp0WorkflowCore\build_workflow_v35.bat" "%MODELROOT%" "%COREOUT%"
 if errorlevel 1 (
   echo [ERROR] Workflow core build failed. Deployment stopped.
   pause
@@ -86,6 +86,17 @@ echo [INFO] Preserving existing dist structure and Workflow config.
 
 :PACKAGE
 if not defined DIST set "DIST=%~dp0dist\UnifiedHydroWorkflow"
+
+if not exist "bin\Release\Unified_Hydro_Workflow_V5.1.0_*.txt" (
+  echo [ERROR] V5.1.0 help file not found in bin\Release. Run build_release.bat first.
+  exit /b 6
+)
+
+if not exist "README_V5_1_0.txt" (
+  echo [ERROR] README_V5_1_0.txt not found.
+  exit /b 6
+)
+
 if not defined REFRESH if exist "%DIST%" rmdir /s /q "%DIST%"
 if not exist "%DIST%" mkdir "%DIST%"
 
@@ -99,24 +110,24 @@ xcopy /e /i /y "PreprocessTemplates" "%DIST%\PreprocessTemplates" >nul
 copy /y "%COREOUT%\UnifiedHydroWorkflow.exe" "%DIST%\UnifiedHydroWorkflow.exe" >nul
 if exist "%COREOUT%\UnifiedHydroWorkflow.pdb" copy /y "%COREOUT%\UnifiedHydroWorkflow.pdb" "%DIST%\UnifiedHydroWorkflow.pdb" >nul
 if not defined REFRESH copy /y "%OLDCFG%" "%DIST%\UnifiedHydroWorkflow.exe.config" >nul
-if exist "bin\Release\*.txt" copy /y "bin\Release\*.txt" "%DIST%\" >nul
-if exist "README_V5_0_8.txt" copy /y "README_V5_0_8.txt" "%DIST%\" >nul
+copy /y "bin\Release\Unified_Hydro_Workflow_V5.1.0_*.txt" "%DIST%\" >nul
+copy /y "README_V5_1_0.txt" "%DIST%\" >nul
 if exist "VERSION.txt" copy /y "VERSION.txt" "%DIST%\" >nul
 
 if not defined REFRESH if exist "%MODELROOT%\UnifiedHydroWorkflow.exe" (
   echo.
   echo [WARNING] A root-level UnifiedHydroWorkflow.exe exists:
   echo   %MODELROOT%\UnifiedHydroWorkflow.exe
-  echo V5.0.8 uses the maintained nested V3.4 core. If the launcher reports a stale-core warning,
+  echo V5.1.0 uses the maintained nested V3.5 core. If the launcher reports a stale-core warning,
   echo back up or remove the old root-level copy, then run the nested launcher again.
 )
 
 echo.
-echo [OK] V5.0.8 deployment folder created:
+echo [OK] V5.1.0 deployment folder created:
 echo %DIST%
 echo.
 echo Now back up/rename the old model-root UnifiedHydroWorkflow folder, then copy this
 echo whole dist\UnifiedHydroWorkflow folder into the original model root.
-echo V5.0.8 does not use external capability marker files.
+echo V5.1.0 does not use external capability marker files.
 if defined REFRESH exit /b 0
 pause

@@ -2,8 +2,9 @@
 
 A Windows-based workflow for hydrological model preprocessing, input checking, preflight validation, and batch simulation.
 
-> 当前稳定版本：**V5.0.8**  
-> Workflow Core：**V3.4**
+> 当前稳定版本：**V5.1.0**
+
+> Workflow Core：**V3.5**
 
 ## 简介
 
@@ -39,9 +40,9 @@ ArcGIS Pro → ArcMap → QGIS
 
 ## 当前稳定版
 
-### Unified Hydro Workflow V5.0.8
+### Unified Hydro Workflow V5.1.0
 
-V5.0.8 当前已完成并稳定使用的主要功能：
+V5.1.0 当前已完成并稳定使用的主要功能：
 
 - ArcGIS Pro / ArcMap / QGIS 三引擎数据预处理
 - GIS 环境自动检测
@@ -78,7 +79,7 @@ V5.0.8 当前已完成并稳定使用的主要功能：
 详细操作请参见：
 
 ```text
-Unified_Hydro_Workflow_V5.0.8_简明使用说明.txt
+Unified_Hydro_Workflow_V5.1.0_简明使用说明.txt
 ```
 
 ---
@@ -204,10 +205,10 @@ main
 │
 ├─ 持续开发源码
 │
-├─ tag v5.0.8
-│  └─ 固定 V5.0.8 源码快照
+├─ tag v5.1.0
+│  └─ 固定 V5.1.0 源码快照
 │
-└─ Release V5.0.8
+└─ Release V5.1.0
    └─ 正式发布版本及可部署程序包
 ```
 
@@ -260,12 +261,12 @@ UnifiedHydroWorkflow/
 │
 ├─ WorkflowCore/
 │  ├─ UnifiedHydroWorkflow.cs
-│  └─ build_workflow_v34.bat
+│  └─ build_workflow_v35.bat
 │
 ├─ tests/
 │
 ├─ build_release.bat
-└─ prepare_deployment_v508.bat
+└─ prepare_deployment_v510.bat
 ```
 
 ---
@@ -295,7 +296,7 @@ Unified Hydro Workflow 推荐以独立子目录形式部署到原水文模型根
    │
    ├─ PreprocessTemplates/
    ├─ VERSION.txt
-   └─ Unified_Hydro_Workflow_V5.0.8_简明使用说明.txt
+   └─ Unified_Hydro_Workflow_V5.1.0_简明使用说明.txt
 ```
 
 程序不会要求原水文模型根目录使用固定文件夹名称。
@@ -323,23 +324,24 @@ GIS 软件不要求安装在固定目录，程序会自动尝试检测常见安�
 
 ```text
 build_release.bat
+WorkflowCore\build_workflow_v35.bat
 ```
 
-用于构建 Launcher 和 Workflow Core。
+`build_release.bat` 用于构建 Launcher；`build_workflow_v35.bat` 用于构建 Workflow Core V3.5。
 
-V5.0.8 部署准备脚本：
+V5.1.0 部署准备脚本：
 
 ```text
-prepare_deployment_v508.bat
+prepare_deployment_v510.bat
 ```
 
 示例：
 
 ```powershell
-.\prepare_deployment_v508.bat "E:\hydrological_modeling\FFMSV4_DEV"
+.\prepare_deployment_v510.bat "E:\hydrological_modeling\ModelRoot"
 ```
 
-实际模型根目录名称不限于 `FFMSV4_DEV`。
+实际模型根目录名称不限于 `ModelRoot`。
 
 ---
 
@@ -347,15 +349,15 @@ prepare_deployment_v508.bat
 
 正式稳定版本通过 GitHub Releases 发布。
 
-V5.0.8 可部署程序包建议命名为：
+V5.1.0 可部署程序包建议命名为：
 
 ```text
-UnifiedHydroWorkflow_V5.0.8.zip
+UnifiedHydroWorkflow_V5.1.0.zip
 ```
 
 Release 中：
 
-- `UnifiedHydroWorkflow_V5.0.8.zip`：可部署程序包
+- `UnifiedHydroWorkflow_V5.1.0.zip`：可部署程序包
 - `Source code (zip)`：GitHub 自动生成的源码快照
 - `Source code (tar.gz)`：GitHub 自动生成的源码快照
 

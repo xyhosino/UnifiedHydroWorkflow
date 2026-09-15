@@ -1,5 +1,5 @@
 ﻿# -*- coding: utf-8 -*-
-"""UnifiedHydroLauncher V5.0.8 ArcGIS Pro preprocessing worker.
+"""UnifiedHydroLauncher V5.1.0 ArcGIS Pro preprocessing worker.
 
 This is the parameterized version of the validated ArcPy preprocessing script.
 The hydrological core is not imported or modified here.
@@ -112,7 +112,7 @@ def smart_clip(in_data, clip_lyr, out_base_path):
     desc = arcpy.Describe(in_data)
     datatype = str(desc.dataType)
     if datatype not in ("FeatureClass", "ShapeFile"):
-        raise ValueError("V5.0.8 预处理仅接受矢量 SHP 土壤/土地利用：{}".format(in_data))
+        raise ValueError("V5.1.0 预处理仅接受矢量 SHP 土壤/土地利用：{}".format(in_data))
     out_file = out_base_path + ".shp"
     delete_if_exists(out_file)
     arcpy.Clip_analysis(in_data, clip_lyr, out_file)

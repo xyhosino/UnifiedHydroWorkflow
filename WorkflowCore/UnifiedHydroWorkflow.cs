@@ -13,6 +13,7 @@ using PublicControl;
 using SKBYModel;
 using SysDAL;
 using SysModel;
+using System.Text;
 
 internal static class UnifiedHydroWorkflow
 {
@@ -20,7 +21,7 @@ internal static class UnifiedHydroWorkflow
     private const string DefaultEndTime = "2006/8/6 0:00:00";
     private const int DefaultIntervalMinutes = 60;
     private const string DefaultSourceStartTime = "2006/8/3 1:00:00";
-    private const double CoverageThreshold = 0.99;
+    private const double ZeroCoverageEpsilon = 1e-12;
     private const string DefaultStationFileName = "站点信息.xlsx";
     private const string DefaultRainfallFileName = "20060803111降雨.xlsx";
 
@@ -142,16 +143,38 @@ internal static class UnifiedHydroWorkflow
                         unit.LandCoverage = CheckCoverage(unit.Wata, unit.LandUse, "XDMDM");
                         unit.SoilCoverage = CheckCoverage(unit.Wata, unit.Soil, "TRZDBM");
                         Console.WriteLine(
-                            "COVERAGE unit={0} land_min={1:F6} soil_min={2:F6} wata={3}",
-                            unit.Name, unit.LandCoverage.Minimum, unit.SoilCoverage.Minimum,
+                            "COVERAGE unit={0} land_min={1:F6} soil_min={2:F6} " +
+                            "land_overall={3:F6} soil_overall={4:F6} " +
+                            "land_zero={5} soil_zero={6} wata={7}",
+                            unit.Name,
+                            unit.LandCoverage.Minimum,
+                            unit.SoilCoverage.Minimum,
+                            unit.LandCoverage.Overall,
+                            unit.SoilCoverage.Overall,
+                            unit.LandCoverage.ZeroCoverageCount,
+                            unit.SoilCoverage.ZeroCoverageCount,
                             unit.SoilCoverage.WatershedCount);
-                        if (unit.LandCoverage.Minimum < CoverageThreshold ||
-                            unit.SoilCoverage.Minimum < CoverageThreshold)
+                        if (unit.LandCoverage.ZeroCoverageCount > 0 ||
+                            unit.SoilCoverage.ZeroCoverageCount > 0)
                         {
-                            skippedCoverage.Add(string.Format(
-                                "{0}: land={1:F6}, soil={2:F6}", unit.Name,
-                                unit.LandCoverage.Minimum, unit.SoilCoverage.Minimum));
-                            Console.WriteLine("SKIPPED_COVERAGE unit=" + unit.Name);
+                            skippedCoverage.Add(
+                                string.Format(
+                                    CultureInfo.InvariantCulture,
+                                    "{0}: land_zero={1}, soil_zero={2}, " +
+                                    "land_overall={3:F6}, soil_overall={4:F6}",
+                                    unit.Name,
+                                    unit.LandCoverage.ZeroCoverageCount,
+                                    unit.SoilCoverage.ZeroCoverageCount,
+                                    unit.LandCoverage.Overall,
+                                    unit.SoilCoverage.Overall));
+                            Console.WriteLine(
+                                "SKIPPED_COVERAGE unit={0} land_zero={1} soil_zero={2} " +
+                                "land_overall={3:F6} soil_overall={4:F6}",
+                                unit.Name,
+                                unit.LandCoverage.ZeroCoverageCount,
+                                unit.SoilCoverage.ZeroCoverageCount,
+                                unit.LandCoverage.Overall,
+                                unit.SoilCoverage.Overall);
                             continue;
                         }
                         validUnits.Add(unit);
@@ -1122,26 +1145,568 @@ internal static class UnifiedHydroWorkflow
         workbook.Save(output, SaveFormat.Excel97To2003);
     }
 
-    private static CoverageResult CheckCoverage(
-        string watershedFile, string thematicFile, string thematicField)
+    private sealed class DbfFieldDefinition
     {
-        var split = new WatershedSplit();
+        public string Name;
+        public int Offset;
+        public int Length;
+    }
+
+
+    private static int ReadBigEndianInt32(
+        BinaryReader reader)
+    {
+        byte[] bytes = reader.ReadBytes(4);
+
+        if (bytes.Length != 4)
+            throw new EndOfStreamException();
+
+        if (BitConverter.IsLittleEndian)
+            Array.Reverse(bytes);
+
+        return BitConverter.ToInt32(bytes, 0);
+    }
+
+
+    private static List<double> ReadPolygonAreas(
+        string shpFile)
+    {
+        var result = new List<double>();
+
+        using (var stream = new FileStream(
+            shpFile,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite))
+        using (var reader = new BinaryReader(stream))
+        {
+            if (stream.Length < 100)
+                throw new InvalidDataException(
+                    "Invalid SHP file: " + shpFile);
+
+            // SHP file header = 100 bytes.
+            stream.Position = 100;
+
+            while (stream.Position + 8 <= stream.Length)
+            {
+                // Record number.
+                ReadBigEndianInt32(reader);
+
+                // Record content length, unit = 16-bit words.
+                int contentLengthWords =
+                    ReadBigEndianInt32(reader);
+
+                if (contentLengthWords <= 0)
+                    throw new InvalidDataException(
+                        "Invalid SHP record length.");
+
+                long recordEnd =
+                    stream.Position +
+                    contentLengthWords * 2L;
+
+                if (recordEnd > stream.Length)
+                    throw new InvalidDataException(
+                        "SHP record exceeds file length.");
+
+                int shapeType =
+                    reader.ReadInt32();
+
+                // Null Shape.
+                if (shapeType == 0)
+                {
+                    result.Add(0.0);
+                    stream.Position = recordEnd;
+                    continue;
+                }
+
+                // Polygon / PolygonZ / PolygonM.
+                if (shapeType != 5 &&
+                    shapeType != 15 &&
+                    shapeType != 25)
+                {
+                    throw new InvalidDataException(
+                        "Expected polygon SHP but found shape type " +
+                        shapeType.ToString(
+                            CultureInfo.InvariantCulture) +
+                        ".");
+                }
+
+                // Bounding box.
+                reader.ReadDouble();
+                reader.ReadDouble();
+                reader.ReadDouble();
+                reader.ReadDouble();
+
+                int partCount =
+                    reader.ReadInt32();
+
+                int pointCount =
+                    reader.ReadInt32();
+
+                if (partCount <= 0 ||
+                    pointCount <= 0)
+                {
+                    result.Add(0.0);
+                    stream.Position = recordEnd;
+                    continue;
+                }
+
+                var parts =
+                    new int[partCount];
+
+                for (int index = 0;
+                    index < partCount;
+                    index++)
+                {
+                    parts[index] =
+                        reader.ReadInt32();
+                }
+
+                var x =
+                    new double[pointCount];
+
+                var y =
+                    new double[pointCount];
+
+                for (int index = 0;
+                    index < pointCount;
+                    index++)
+                {
+                    x[index] =
+                        reader.ReadDouble();
+
+                    y[index] =
+                        reader.ReadDouble();
+                }
+
+                double signedArea = 0.0;
+
+                for (int partIndex = 0;
+                    partIndex < partCount;
+                    partIndex++)
+                {
+                    int start =
+                        parts[partIndex];
+
+                    int end =
+                        partIndex + 1 < partCount
+                            ? parts[partIndex + 1]
+                            : pointCount;
+
+                    if (end - start < 3)
+                        continue;
+
+                    double ringArea = 0.0;
+
+                    for (int index = start;
+                        index < end;
+                        index++)
+                    {
+                        int next =
+                            index + 1 < end
+                                ? index + 1
+                                : start;
+
+                        ringArea +=
+                            x[index] * y[next] -
+                            x[next] * y[index];
+                    }
+
+                    signedArea +=
+                        ringArea * 0.5;
+                }
+
+                result.Add(
+                    Math.Abs(signedArea));
+
+                // PolygonZ / PolygonM still contains
+                // Z/M arrays after XY; skip them.
+                stream.Position = recordEnd;
+            }
+        }
+
+        return result;
+    }
+
+
+    private static List<string> ReadDbfFieldValues(
+        string dbfFile,
+        string requestedField)
+    {
+        var values =
+            new List<string>();
+
+        using (var stream = new FileStream(
+            dbfFile,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite))
+        using (var reader = new BinaryReader(stream))
+        {
+            byte[] header =
+                reader.ReadBytes(32);
+
+            if (header.Length != 32)
+                throw new InvalidDataException(
+                    "Invalid DBF header: " + dbfFile);
+
+            int recordCount =
+                header[4] |
+                (header[5] << 8) |
+                (header[6] << 16) |
+                (header[7] << 24);
+
+            int headerLength =
+                header[8] |
+                (header[9] << 8);
+
+            int recordLength =
+                header[10] |
+                (header[11] << 8);
+
+            var fields =
+                new List<DbfFieldDefinition>();
+
+            int fieldOffset = 1;
+
+            while (stream.Position < headerLength)
+            {
+                int marker =
+                    stream.ReadByte();
+
+                if (marker < 0 ||
+                    marker == 0x0D)
+                {
+                    break;
+                }
+
+                stream.Position--;
+
+                byte[] descriptor =
+                    reader.ReadBytes(32);
+
+                if (descriptor.Length != 32)
+                    throw new InvalidDataException(
+                        "Invalid DBF field descriptor.");
+
+                int nameLength = 0;
+
+                while (nameLength < 11 &&
+                    descriptor[nameLength] != 0)
+                {
+                    nameLength++;
+                }
+
+                string name =
+                    Encoding.ASCII.GetString(
+                        descriptor,
+                        0,
+                        nameLength).Trim();
+
+                int length =
+                    descriptor[16];
+
+                fields.Add(
+                    new DbfFieldDefinition
+                    {
+                        Name = name,
+                        Offset = fieldOffset,
+                        Length = length
+                    });
+
+                fieldOffset += length;
+            }
+
+            DbfFieldDefinition target =
+                fields.FirstOrDefault(
+                    field =>
+                        string.Equals(
+                            field.Name,
+                            requestedField,
+                            StringComparison.OrdinalIgnoreCase));
+
+            if (target == null)
+            {
+                throw new InvalidDataException(
+                    "DBF field not found: " +
+                    requestedField);
+            }
+
+            stream.Position =
+                headerLength;
+
+            for (int recordIndex = 0;
+                recordIndex < recordCount;
+                recordIndex++)
+            {
+                byte[] record =
+                    reader.ReadBytes(
+                        recordLength);
+
+                if (record.Length != recordLength)
+                    throw new InvalidDataException(
+                        "Unexpected end of DBF file.");
+
+                // Deleted DBF record.
+                if (record[0] == 0x2A)
+                {
+                    values.Add("");
+                    continue;
+                }
+
+                string value =
+                    Encoding.ASCII.GetString(
+                        record,
+                        target.Offset,
+                        target.Length).Trim();
+
+                values.Add(value);
+            }
+        }
+
+        return values;
+    }
+
+
+    private static Dictionary<string, double>
+        ReadWatershedAreasByCode(
+            string watershedFile)
+    {
+        string dbfFile =
+            Path.ChangeExtension(
+                watershedFile,
+                ".dbf");
+
+        RequireFile(watershedFile);
+        RequireFile(dbfFile);
+
+        List<double> areas =
+            ReadPolygonAreas(
+                watershedFile);
+
+        List<string> codes =
+            ReadDbfFieldValues(
+                dbfFile,
+                "WSCD");
+
+        if (areas.Count != codes.Count)
+        {
+            throw new InvalidDataException(
+                string.Format(
+                    CultureInfo.InvariantCulture,
+                    "SHP/DBF feature count mismatch: " +
+                    "shp={0}, dbf={1}.",
+                    areas.Count,
+                    codes.Count));
+        }
+
+        var result =
+            new Dictionary<string, double>(
+                StringComparer.OrdinalIgnoreCase);
+
+        for (int index = 0;
+            index < areas.Count;
+            index++)
+        {
+            string code =
+                (codes[index] ?? "").Trim();
+
+            if (code.Length == 0)
+                continue;
+
+            double area =
+                areas[index];
+
+            if (area <= 0.0 ||
+                double.IsNaN(area) ||
+                double.IsInfinity(area))
+            {
+                continue;
+            }
+
+            double existing;
+
+            if (result.TryGetValue(
+                    code,
+                    out existing))
+            {
+                result[code] =
+                    existing + area;
+            }
+            else
+            {
+                result.Add(
+                    code,
+                    area);
+            }
+        }
+
+        return result;
+    }
+
+    private static CoverageResult CheckCoverage(
+        string watershedFile,
+        string thematicFile,
+        string thematicField)
+    {
+        var split =
+            new WatershedSplit();
+
         try
         {
-            if (!split.DoGeoStatistic(watershedFile, thematicFile, "WSCD", thematicField))
-                throw new InvalidOperationException(
-                    "Coverage calculation failed: " + split.LastError);
-            int count = split.GetStatWatershedNum();
-            if (count == 0)
-                return new CoverageResult(0, 0);
-            double minimum = double.MaxValue;
-            for (int index = 0; index < count; index++)
+            if (!split.DoGeoStatistic(
+                    watershedFile,
+                    thematicFile,
+                    "WSCD",
+                    thematicField))
             {
-                SubWatershedLandAttr item = split.GetSubWatershedLandAttr(index);
-                double sum = item.LandAttrAndRatio.Values.Sum();
-                minimum = Math.Min(minimum, sum);
+                throw new InvalidOperationException(
+                    "Coverage calculation failed: " +
+                    split.LastError);
             }
-            return new CoverageResult(minimum, count);
+
+            // 读取 Wata.shp 中全部子流域及其面积。
+            // 整个计算单元的全部面积都必须进入总体覆盖率的分母。
+            Dictionary<string, double> areaByCode =
+                ReadWatershedAreasByCode(
+                    watershedFile);
+
+            if (areaByCode.Count == 0)
+            {
+                throw new InvalidOperationException(
+                    "No valid watershed polygons were found.");
+            }
+
+            // DoGeoStatistic 返回的是实际产生专题统计结果的子流域。
+            int statCount =
+                split.GetStatWatershedNum();
+
+            var coverageByCode =
+                new Dictionary<string, double>(
+                    StringComparer.OrdinalIgnoreCase);
+
+            for (int index = 0;
+                index < statCount;
+                index++)
+            {
+                SubWatershedLandAttr item =
+                    split.GetSubWatershedLandAttr(
+                        index);
+
+                string shapeCode =
+                    Convert.ToString(
+                        item.ShapeCode).Trim();
+
+                if (shapeCode.Length == 0)
+                {
+                    throw new InvalidOperationException(
+                        "Coverage statistic contains an empty WSCD.");
+                }
+
+                if (!areaByCode.ContainsKey(shapeCode))
+                {
+                    throw new InvalidOperationException(
+                        "Coverage statistic cannot match Wata WSCD=" +
+                        shapeCode);
+                }
+
+                double coverage =
+                    item.LandAttrAndRatio
+                        .Values
+                        .Sum();
+
+                // 防止浮点误差造成略小于0或略大于1。
+                if (coverage < 0.0)
+                    coverage = 0.0;
+
+                if (coverage > 1.0)
+                    coverage = 1.0;
+
+                if (coverageByCode.ContainsKey(shapeCode))
+                {
+                    throw new InvalidOperationException(
+                        "Duplicate coverage statistic WSCD=" +
+                        shapeCode);
+                }
+
+                coverageByCode.Add(
+                    shapeCode,
+                    coverage);
+            }
+
+            double totalArea = 0.0;
+            double coveredArea = 0.0;
+            double minimum = double.MaxValue;
+
+            int matchedCount = 0;
+            int zeroCoverageCount = 0;
+
+            // 关键修正：
+            // 遍历全部 Wata 子流域。
+            foreach (KeyValuePair<string, double> pair
+                    in areaByCode)
+            {
+                string watershedCode =
+                    pair.Key;
+
+                double area =
+                    pair.Value;
+
+                double coverage;
+
+                if (coverageByCode.TryGetValue(
+                        watershedCode,
+                        out coverage))
+                {
+                    matchedCount++;
+                }
+                else
+                {
+                    // Wata 中存在，但专题图层没有任何统计结果：
+                    // 该子流域覆盖率视为 0%。
+                    coverage = 0.0;
+                }
+
+                if (coverage <= ZeroCoverageEpsilon)
+                    zeroCoverageCount++;
+
+                totalArea += area;
+
+                coveredArea +=
+                    area * coverage;
+
+                minimum =
+                    Math.Min(
+                        minimum,
+                        coverage);
+            }
+
+            if (totalArea <= 0.0)
+            {
+                throw new InvalidOperationException(
+                    "Total watershed area is zero.");
+            }
+
+            if (minimum == double.MaxValue)
+                minimum = 0.0;
+
+            double overall =
+                coveredArea /
+                totalArea;
+
+            Console.WriteLine(
+                "COVERAGE_DETAIL field={0} total_wata={1} stat_wata={2} matched={3} zero={4}",
+                thematicField,
+                areaByCode.Count,
+                statCount,
+                matchedCount,
+                zeroCoverageCount);
+
+            return new CoverageResult(
+                minimum,
+                overall,
+                areaByCode.Count,
+                zeroCoverageCount);
         }
         finally
         {
@@ -1489,7 +2054,7 @@ internal static class UnifiedHydroWorkflow
 
     private static void PrintCapabilities()
     {
-        Console.WriteLine("WORKFLOW_CORE_VERSION 3.4");
+        Console.WriteLine("WORKFLOW_CORE_VERSION 3.5");
         Console.WriteLine("CAPABILITY capability-query");
         Console.WriteLine("CAPABILITY skip-preflight");
         Console.WriteLine("CAPABILITY database-rollback");
@@ -1651,11 +2216,20 @@ internal static class UnifiedHydroWorkflow
     private sealed class CoverageResult
     {
         public readonly double Minimum;
+        public readonly double Overall;
         public readonly int WatershedCount;
-        public CoverageResult(double minimum, int count)
+        public readonly int ZeroCoverageCount;
+
+        public CoverageResult(
+            double minimum,
+            double overall,
+            int count,
+            int zeroCoverageCount)
         {
             Minimum = minimum;
+            Overall = overall;
             WatershedCount = count;
+            ZeroCoverageCount = zeroCoverageCount;
         }
     }
 

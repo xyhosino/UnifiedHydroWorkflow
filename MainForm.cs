@@ -388,14 +388,15 @@ namespace UnifiedHydroLauncher
             gridUnits.BorderStyle = BorderStyle.Fixed3D;
             gridUnits.CellDoubleClick += GridUnits_CellDoubleClick;
 
-            AddGridColumn("Unit", "计算单元", 170);
-            AddGridColumn("Shapes", "5类SHP", 85);
-            AddGridColumn("Station", "站点", 95);
-            AddGridColumn("Rainfall", "降雨", 95);
-            AddGridColumn("Source", "上游水源表", 125);
-            AddGridColumn("Coverage", "覆盖率", 160);
-            AddGridColumn("Status", "状态", 130);
-            AddGridColumn("Note", "说明", 220);
+            AddGridColumn("Unit", "计算单元", 145);
+            AddGridColumn("Shapes", "5类SHP", 65);
+            AddGridColumn("Station", "站点", 75);
+            AddGridColumn("Rainfall", "降雨", 75);
+            AddGridColumn("Source", "上游水源表", 100);
+            AddGridColumn("Coverage", "最差子流域覆盖率", 175);
+            AddGridColumn("OverallCoverage", "整体覆盖率", 175);
+            AddGridColumn("Status", "状态", 105);
+            AddGridColumn("Note", "说明", 195);
             unitGroup.Controls.Add(gridUnits);
 
             var logGroup = new GroupBox();
@@ -761,6 +762,7 @@ namespace UnifiedHydroLauncher
                 Convert.ToString(row.Cells["Rainfall"].Value),
                 Convert.ToString(row.Cells["Source"].Value),
                 Convert.ToString(row.Cells["Coverage"].Value),
+                Convert.ToString(row.Cells["OverallCoverage"].Value),
                 Convert.ToString(row.Cells["Status"].Value),
                 Convert.ToString(row.Cells["Note"].Value));
         }
@@ -795,6 +797,7 @@ namespace UnifiedHydroLauncher
                 row.Cells["Rainfall"].Value = cached.Rainfall;
                 row.Cells["Source"].Value = cached.Source;
                 row.Cells["Coverage"].Value = cached.Coverage;
+                row.Cells["OverallCoverage"].Value = cached.OverallCoverage;
                 row.Cells["Note"].Value = cached.Note;
             }
         }
@@ -822,6 +825,11 @@ namespace UnifiedHydroLauncher
                 if (!string.IsNullOrWhiteSpace(previous.Coverage) &&
                     previous.Coverage != "—")
                     row.Cells["Coverage"].Value = previous.Coverage;
+
+                if (!string.IsNullOrWhiteSpace(previous.OverallCoverage) &&
+                    previous.OverallCoverage != "—")
+                    row.Cells["OverallCoverage"].Value =
+                        previous.OverallCoverage;
 
                 if (!string.IsNullOrWhiteSpace(previous.Status))
                 {
@@ -932,6 +940,7 @@ namespace UnifiedHydroLauncher
                 FormatEventInputStatus(
                     input, InputRoles.Rainfall, txtRainfallExternalRoot),
                 sourceStatus,
+                "—",
                 "—",
                 status,
                 note);
@@ -1564,7 +1573,10 @@ namespace UnifiedHydroLauncher
                     continue;
 
                 if (!_reusePreflightForCurrentRun)
+                {
                     row.Cells["Coverage"].Value = "—";
+                    row.Cells["OverallCoverage"].Value = "—";
+                }
 
                 string status =
                     Convert.ToString(row.Cells["Status"].Value);
@@ -1771,10 +1783,24 @@ namespace UnifiedHydroLauncher
                 string unit = ExtractValue(line, "unit=");
                 string landText = ExtractValue(line, "land_min=");
                 string soilText = ExtractValue(line, "soil_min=");
+                string landOverallText =
+                    ExtractValue(line, "land_overall=");
+                string soilOverallText =
+                    ExtractValue(line, "soil_overall=");
+                string landZeroText =
+                    ExtractValue(line, "land_zero=");
+                string soilZeroText =
+                    ExtractValue(line, "soil_zero=");
 
-                double land;
-                double soil;
-                if (double.TryParse(
+                double land = 0.0;
+                double soil = 0.0;
+                double landOverall = 0.0;
+                double soilOverall = 0.0;
+                int landZero = 0;
+                int soilZero = 0;
+
+                bool minimumParsed =
+                    double.TryParse(
                         landText,
                         NumberStyles.Float,
                         CultureInfo.InvariantCulture,
@@ -1783,7 +1809,33 @@ namespace UnifiedHydroLauncher
                         soilText,
                         NumberStyles.Float,
                         CultureInfo.InvariantCulture,
-                        out soil))
+                        out soil);
+
+                bool overallParsed =
+                    double.TryParse(
+                        landOverallText,
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out landOverall) &&
+                    double.TryParse(
+                        soilOverallText,
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out soilOverall);
+
+                bool zeroParsed =
+                    int.TryParse(
+                        landZeroText,
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out landZero) &&
+                    int.TryParse(
+                        soilZeroText,
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out soilZero);
+
+                if (minimumParsed)
                 {
                     SetCoverage(
                         unit,
@@ -1794,14 +1846,129 @@ namespace UnifiedHydroLauncher
                             soil * 100.0));
                 }
 
+                if (overallParsed)
+                {
+                    SetOverallCoverage(
+                        unit,
+                        string.Format(
+                            CultureInfo.InvariantCulture,
+                            "L {0:F2}% / S {1:F2}%",
+                            landOverall * 100.0,
+                            soilOverall * 100.0));
+                }
+
+                // 读取零覆盖计数以兼容并校验新 Core 日志；
+                // 是否阻断仍以随后到达的 SKIPPED_COVERAGE 为准。
+                if (zeroParsed && (landZero < 0 || soilZero < 0))
+                    AppendLog("COVERAGE_ZERO_COUNT_INVALID unit=" + unit);
+
                 SetUnitStatus(unit, "预检通过", "");
                 return;
             }
 
             if (line.StartsWith("SKIPPED_COVERAGE unit="))
             {
-                string unit = ExtractValue(line, "unit=");
-                SetUnitStatus(unit, "覆盖不足", "低于核心程序覆盖率阈值");
+                string unit =
+                    ExtractValue(line, "unit=");
+
+                string landZeroText =
+                    ExtractValue(line, "land_zero=");
+
+                string soilZeroText =
+                    ExtractValue(line, "soil_zero=");
+
+                string landText =
+                    ExtractValue(line, "land_overall=");
+
+                string soilText =
+                    ExtractValue(line, "soil_overall=");
+
+                double land = 0.0;
+                double soil = 0.0;
+                int landZero = 0;
+                int soilZero = 0;
+
+                bool zeroParsed =
+                    int.TryParse(
+                        landZeroText,
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out landZero) &&
+                    int.TryParse(
+                        soilZeroText,
+                        NumberStyles.Integer,
+                        CultureInfo.InvariantCulture,
+                        out soilZero);
+
+                bool overallParsed =
+                    double.TryParse(
+                        landText,
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out land) &&
+                    double.TryParse(
+                        soilText,
+                        NumberStyles.Float,
+                        CultureInfo.InvariantCulture,
+                        out soil);
+
+                if (!zeroParsed)
+                {
+                    SetUnitStatus(
+                        unit,
+                        "覆盖不足",
+                        "无法解析零覆盖子流域数量，详见运行日志");
+
+                    return;
+                }
+
+                string reason;
+
+                if (landZero > 0 && soilZero > 0)
+                {
+                    reason = string.Format(
+                        CultureInfo.InvariantCulture,
+                        "存在 {0} 个无土地利用覆盖、{1} 个无土壤覆盖的子流域，无法建立完整模型输入",
+                        landZero,
+                        soilZero);
+                }
+                else if (landZero > 0)
+                {
+                    reason = string.Format(
+                        CultureInfo.InvariantCulture,
+                        "存在 {0} 个无土地利用覆盖的子流域，无法建立完整模型输入",
+                        landZero);
+                }
+                else if (soilZero > 0)
+                {
+                    reason = string.Format(
+                        CultureInfo.InvariantCulture,
+                        "存在 {0} 个无土壤覆盖的子流域，无法建立完整模型输入",
+                        soilZero);
+                }
+                else
+                {
+                    reason = "零覆盖子流域数量无效，详见运行日志";
+                }
+
+                if (overallParsed)
+                {
+                    string overallCoverage =
+                        string.Format(
+                            CultureInfo.InvariantCulture,
+                            "L {0:F2}% / S {1:F2}%",
+                            land * 100.0,
+                            soil * 100.0);
+
+                    SetOverallCoverage(unit, overallCoverage);
+                    reason += "；整体覆盖率 " + overallCoverage;
+                }
+
+                SetUnitStatus(
+                    unit,
+                    "覆盖不足",
+                    reason);
+
                 return;
             }
 
@@ -2126,6 +2293,18 @@ namespace UnifiedHydroLauncher
 
             gridUnits.Rows[rowIndex]
                 .Cells["Coverage"].Value = coverage;
+        }
+
+        private void SetOverallCoverage(
+            string unit,
+            string coverage)
+        {
+            int rowIndex;
+            if (!_unitRows.TryGetValue(unit, out rowIndex))
+                return;
+
+            gridUnits.Rows[rowIndex]
+                .Cells["OverallCoverage"].Value = coverage;
         }
 
         private void SetUnitStatus(
@@ -2573,6 +2752,7 @@ namespace UnifiedHydroLauncher
             public readonly string Rainfall;
             public readonly string Source;
             public readonly string Coverage;
+            public readonly string OverallCoverage;
             public readonly string Status;
             public readonly string Note;
 
@@ -2582,6 +2762,7 @@ namespace UnifiedHydroLauncher
                 string rainfall,
                 string source,
                 string coverage,
+                string overallCoverage,
                 string status,
                 string note)
             {
@@ -2590,6 +2771,7 @@ namespace UnifiedHydroLauncher
                 Rainfall = rainfall ?? "";
                 Source = source ?? "";
                 Coverage = coverage ?? "";
+                OverallCoverage = overallCoverage ?? "";
                 Status = status ?? "";
                 Note = note ?? "";
             }

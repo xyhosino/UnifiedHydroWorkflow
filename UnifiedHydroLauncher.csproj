@@ -75,7 +75,7 @@
     <Content Include="UnifiedHydroPreprocess_QGIS.py">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
-    <Content Include="Unified_Hydro_Workflow_V5.0.8_简明使用说明.txt">
+    <Content Include="Unified_Hydro_Workflow_V5.1.0_简明使用说明.txt">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="PreprocessTemplates\wata.shp">

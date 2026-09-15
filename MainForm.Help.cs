@@ -1003,7 +1003,7 @@ namespace UnifiedHydroLauncher
                 AppendLog("UPDATE_CHECK invalid_tag latest=" + result.LatestTag);
                 MessageBox.Show(this,
                     "无法识别 GitHub Release 版本标签：" + result.LatestTag +
-                    "\r\n\r\n版本标签应使用三段格式，例如 v5.0.8。",
+                    "\r\n\r\n版本标签应使用三段格式，例如 v5.1.0。",
                     "检查更新",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Warning);
